@@ -8,7 +8,7 @@ import torch
 import json
 import wn
 
-__FILES__ = [
+__JSONS__ = [
     "data/desc.json",
     "data/defi.json",
     "data/unseen.json",
@@ -21,6 +21,7 @@ PARTS_OF_SPEECH = {
     "n": "noun",
     "v": "verb",
     "a": "adjective",
+    "adj": "adjective",
     "r": "adverb",
     "s": "adjective satellite",
     "t": "phrase",
@@ -33,7 +34,7 @@ wn.download("oewn:2022")
 en = wn.Wordnet("oewn:2022")
 
 
-def load_additional_data(fnames, max_defs=5):
+def load_additional_json_data(fnames, max_defs=5):
     seen = {}
     moredata = []
     count = 0
@@ -54,6 +55,27 @@ def load_additional_data(fnames, max_defs=5):
     return moredata
 
 
+def load_wiktionary_data(wikt_path):
+    data = []
+    with open(wikt_path, "r") as f:
+        for line in f:
+            # split each line by the tab character
+            parts = line.strip().split("\t")
+            if len(parts) == 3:
+                word, pos, definition = parts
+                # For each entry, create a tuple with the word as the ID,
+                # the definition and other details as the text,
+                # and None as the metadata
+                data.append(
+                    (
+                        word,
+                        f"{definition}\nPart of speech: {PARTS_OF_SPEECH.get(pos, 'unknown')}\nLemmas: {word}\n",
+                        None,
+                    )
+                )
+    return data
+
+
 # https://wn.readthedocs.io/en/latest/api/wn.html#wn.Synset
 def main(name):
     documents = [
@@ -67,8 +89,13 @@ def main(name):
         )
         for synset in en.synsets()
     ]
-    hilldata = load_additional_data(__FILES__)
+    print("wordnet data loaded")
+    hilldata = load_additional_json_data(__JSONS__)
     documents.extend(hilldata)
+    print(f"hill data loaded: {hilldata[:10]}")
+    wiktionarydata = load_wiktionary_data("data/word_defs_wiktionary.txt")
+    print(f"wiktionary data loaded: {wiktionarydata[:10]}")
+    documents.extend(wiktionarydata)
     embeddings = Embeddings(
         {
             "path": "sentence-transformers/all-roberta-large-v1",
@@ -77,6 +104,7 @@ def main(name):
         }
     )
     embeddings.index(documents)
+    print("embeddings successfully indexed")
     embeddings.save("reverse-dictionary-onelook")
 
 
